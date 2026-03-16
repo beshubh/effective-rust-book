@@ -1,1 +1,1 @@
-# experiments from effective rust boo
+# experiments from effective rust book
