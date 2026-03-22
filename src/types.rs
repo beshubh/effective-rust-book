@@ -288,3 +288,54 @@ mod tests {
         }
     }
 }
+
+mod type_conversions {
+    fn main() {
+        /// Integer value from an IANA-controlled range.
+        #[derive(Copy, Debug, Clone)]
+        pub struct IanaAllocated(pub u64);
+
+        /// Indicated whether the value is reserved.
+        pub fn is_iana_reserved(s: IanaAllocated) -> bool {
+            s.0 == 0 || s.0 == 65535
+        }
+
+        let s = IanaAllocated(1);
+        assert_eq!(is_iana_reserved(s), false);
+
+        impl From<u64> for IanaAllocated {
+            fn from(value: u64) -> Self {
+                Self(value)
+            }
+        }
+
+        // DOES NOT WORKS
+        // assert_eq!(is_iana_reserved(64), false);
+        fn is_iana_reserved_generic<T>(s: T) -> bool
+        where
+            T: Into<IanaAllocated>,
+        {
+            let s = s.into();
+            s.0 == 0 || s.0 == 65535
+        }
+
+        // WORKS for both u64 and IanaAllocated direct types
+        assert_eq!(is_iana_reserved_generic(65), false);
+        assert_eq!(is_iana_reserved_generic(IanaAllocated(64)), false);
+
+        // Casts
+
+        let x: u32 = 9;
+        let y = x as u64;
+        let z: u64 = x.into();
+
+        let i = 900_u64;
+        let j = i as u32; // lossy conversion
+
+        let x: u32 = 9;
+        let y = x as u16;
+        // this won't work
+        // let y: u16 = x.into();
+        
+    }
+}
