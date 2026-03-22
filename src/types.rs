@@ -186,6 +186,105 @@ mod tests {
             fn encrypt(&self) -> Vec<u8> {
                 encrypt(self.payload.as_ref().unwrap_or(&vec![]))
             }
-}
+        }
+    }
+
+    fn idiomatic_errors() {
+        use std::error::Error;
+
+        #[derive(Debug)]
+        pub struct MyError(String);
+
+        impl std::fmt::Display for MyError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+
+        impl std::error::Error for MyError {}
+
+        impl From<String> for MyError {
+            fn from(value: String) -> Self {
+                MyError(value)
+            }
+        }
+
+        pub fn find_user(username: &str) -> Result<String, MyError> {
+            let f = std::fs::File::open("/etc/passwd")
+                .map_err(|e| format!("Failed to open password file: {:?}", e))?;
+            unimplemented!()
+        }
+
+        #[derive(Debug)]
+        pub enum CustomFileError {
+            Io(std::io::Error),
+            Utf8(std::string::FromUtf8Error),
+            General(String),
+        }
+
+        impl std::fmt::Display for CustomFileError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    CustomFileError::Io(e) => write!(f, "IO Error: {}", e),
+                    CustomFileError::Utf8(e) => write!(f, "UTF-8 Error: {}", e),
+                    CustomFileError::General(e) => write!(f, "General error: {}", e),
+                }
+            }
+        }
+
+        impl Error for CustomFileError {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                match self {
+                    CustomFileError::Io(e) => Some(e),
+                    CustomFileError::Utf8(e) => Some(e),
+                    CustomFileError::General(_) => None,
+                }
+            }
+        }
+
+        impl From<std::string::FromUtf8Error> for CustomFileError {
+            fn from(value: std::string::FromUtf8Error) -> Self {
+                Self::Utf8(value)
+            }
+        }
+
+        impl From<std::io::Error> for CustomFileError {
+            fn from(value: std::io::Error) -> Self {
+                Self::Io(value)
+            }
+        }
+
+        use std::io::BufRead;
+
+        const MAX_LEN: usize = 1024;
+
+        pub fn first_line(filename: &str) -> Result<String, CustomFileError> {
+            // let file = std::fs::File::open(filename).map_err(CustomFileError::Io)?;
+            let file = std::fs::File::open(filename)?; // after From impl
+            let mut reader = std::io::BufReader::new(file);
+
+            let mut buf = vec![];
+            let len = reader.read_until(b'\n', &mut buf)?; // After From
+            let result = String::from_utf8(buf)?; // After From impl 
+            if result.len() > MAX_LEN {
+                return Err(CustomFileError::General(format!("Line too long: {}", len)));
+            }
+            Ok(result)
+        }
+
+        #[derive(Debug)]
+        enum WrappedError {
+            Wrapped(Box<dyn Error>),
+            General(String),
+        }
+
+        impl std::fmt::Display for WrappedError {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    Self::Wrapped(e) => write!(f, "Inner error: {}", e),
+                    Self::General(e) => write!(f, "{}", e),
+                }
+            }
+        }
     }
 }
